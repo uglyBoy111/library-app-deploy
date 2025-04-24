@@ -1,148 +1,176 @@
 #!/bin/bash
 
-# 南京林业大学图书馆座位管理系统安装脚本
-# 作者: uglyBoy111
-# 日期: 2025-04-24
+# 颜色定义
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # 无颜色
 
-# 颜色设置
-GREEN="\033[0;32m"
-YELLOW="\033[1;33m"
-RED="\033[0;31m"
-NC="\033[0m" # No Color
+# 仓库信息
+REPO_OWNER="uglyBoy111"
+REPO_NAME="library-app-deploy"
+BRANCH="main"
+BASE_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}"
+GITHUB_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${BRANCH}"
 
-# 函数定义
-info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; }
-
-# 检查是否为root用户
-if [ "$EUID" -ne 0 ]; then
-  error "请使用root权限运行此脚本"
-  echo "尝试: sudo bash install.sh"
-  exit 1
-fi
-
-# 变量定义
+# 安装目录
+INSTALL_DIR="/opt/library-seat-app"
+BIN_DIR="/usr/local/bin"
 APP_NAME="图书馆座位管理"
-INSTALL_DIR="/opt/library-app"
-SERVICE_NAME="library-app"
-APP_REPO="https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main"
+DEPS_ARCHIVE="_internal.tar.gz"
+APP_PORT=5000
 
-# 显示标题
-echo "=========================================================="
-echo "       南京林业大学图书馆座位预约系统 - 安装脚本"
-echo "=========================================================="
-echo ""
-
-# 步骤1: 检测系统架构
-info "步骤1: 检测系统架构..."
-ARCH=$(uname -m)
-if [ "$ARCH" = "x86_64" ]; then
-    APP_URL="${APP_REPO}/releases/x86_64/app-x86_64.tar.gz"
-    info "检测到x86_64架构"
-elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-    APP_URL="${APP_REPO}/releases/arm64/app-arm64.tar.gz"
-    info "检测到ARM64架构"
-else
-    error "不支持的系统架构: $ARCH"
+# 检查是否为 root 用户
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "${RED}错误: 此脚本需要 root 权限运行${NC}"
+    echo "请使用 sudo 运行此脚本"
     exit 1
 fi
 
-# 步骤2: 创建安装目录
-info "步骤2: 创建安装目录..."
-mkdir -p $INSTALL_DIR
-mkdir -p $INSTALL_DIR/data/instance
-mkdir -p $INSTALL_DIR/data/logs
-mkdir -p $INSTALL_DIR/data/keys
-
-# 步骤3: 下载应用包
-info "步骤3: 下载应用包..."
-TMP_FILE="/tmp/library-app.tar.gz"
-if command -v curl &>/dev/null; then
-    curl -L -o $TMP_FILE $APP_URL || {
-        error "应用下载失败，请检查网络连接或链接是否有效。"
-        exit 1
-    }
-elif command -v wget &>/dev/null; then
-    wget -O $TMP_FILE $APP_URL || {
-        error "应用下载失败，请检查网络连接或链接是否有效。"
-        exit 1
-    }
-else
-    error "未找到curl或wget命令，请先安装其中一个工具。"
-    exit 1
-fi
-
-# 步骤4: 解压应用包
-info "步骤4: 解压应用包..."
-tar -xzf $TMP_FILE -C $INSTALL_DIR || {
-    error "解压应用包失败。"
-    exit 1
+# 检测系统架构
+detect_arch() {
+    local arch=$(uname -m)
+    case "$arch" in
+        x86_64)
+            echo "x86_64"
+            ;;
+        aarch64|arm64)
+            echo "arm64"
+            ;;
+        *)
+            echo -e "${RED}不支持的架构: $arch${NC}"
+            exit 1
+            ;;
+    esac
 }
-rm -f $TMP_FILE
 
-# 步骤5: 安装uninstall脚本
-info "步骤5: 安装卸载脚本..."
-curl -s -o $INSTALL_DIR/uninstall.sh $APP_REPO/scripts/uninstall.sh || {
-    warn "卸载脚本下载失败，将创建简单卸载脚本。"
-    cat > $INSTALL_DIR/uninstall.sh << 'EOF'
-#!/bin/bash
-systemctl stop library-app
-systemctl disable library-app
-rm -f /etc/systemd/system/library-app.service
-rm -rf /opt/library-app
-systemctl daemon-reload
-echo "图书馆座位管理系统已卸载"
-EOF
+# 下载文件函数，如果一种方法失败会尝试备用方法
+download_file() {
+    local url=$1
+    local destination=$2
+    local description=$3
+
+    echo "下载${description}..."
+    
+    # 尝试使用curl下载
+    if ! curl -L -f -o "${destination}" "${url}"; then
+        echo "尝试备用下载方法..."
+        # 备用下载URL
+        local alt_url="${url/raw.githubusercontent.com/github.com}"
+        alt_url="${alt_url/\/main\//\/raw\/main\/}"
+        
+        if ! curl -L -f -o "${destination}" "${alt_url}"; then
+            echo -e "${RED}错误: 无法下载${description}${NC}"
+            echo "URL: ${url}"
+            echo "备用URL: ${alt_url}"
+            return 1
+        fi
+    fi
+    
+    return 0
 }
-chmod +x $INSTALL_DIR/uninstall.sh
 
-# 步骤6: 设置权限
-info "步骤6: 设置应用权限..."
-chmod +x $INSTALL_DIR/图书馆座位管理
-chown -R root:root $INSTALL_DIR
+ARCH=$(detect_arch)
+echo -e "${GREEN}=== 图书馆座位管理系统一键部署工具 ===${NC}"
+echo -e "检测到系统架构: ${YELLOW}${ARCH}${NC}"
+echo -e "安装日期: $(date '+%Y-%m-%d %H:%M:%S')"
+echo -e "当前用户: ${YELLOW}$(whoami)${NC}"
 
-# 步骤7: 创建系统服务
-info "步骤7: 创建系统服务..."
-cat > /etc/systemd/system/$SERVICE_NAME.service << EOF
-[Unit]
-Description=图书馆座位管理系统
-After=network.target
+# 创建临时目录和安装目录
+TEMP_DIR=$(mktemp -d)
+echo "创建安装目录..."
+mkdir -p "${INSTALL_DIR}"
 
-[Service]
-Type=simple
-ExecStart=$INSTALL_DIR/图书馆座位管理
-WorkingDirectory=$INSTALL_DIR
-Restart=always
-Environment="APP_DATA_DIR=$INSTALL_DIR/data"
+# 下载二进制文件
+BINARY_URL="${BASE_URL}/releases/${ARCH}/${APP_NAME}"
+BINARY_GITHUB_URL="${GITHUB_URL}/releases/${ARCH}/${APP_NAME}"
+echo "下载应用程序..."
+if ! curl -L -f -o "${INSTALL_DIR}/${APP_NAME}" "${BINARY_URL}"; then
+    echo "尝试备用下载地址..."
+    if ! curl -L -f -o "${INSTALL_DIR}/${APP_NAME}" "${BINARY_GITHUB_URL}"; then
+        echo -e "${RED}错误: 无法下载应用程序${NC}"
+        echo "请检查以下网址是否可访问:"
+        echo "${BINARY_URL}"
+        echo "${BINARY_GITHUB_URL}"
+        rm -rf "${TEMP_DIR}"
+        exit 1
+    fi
+fi
+chmod +x "${INSTALL_DIR}/${APP_NAME}"
 
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 步骤8: 启动服务
-info "步骤8: 启动服务..."
-systemctl daemon-reload
-systemctl enable $SERVICE_NAME
-systemctl start $SERVICE_NAME
-
-# 获取IP地址
-IP_ADDR=$(hostname -I | awk '{print $1}')
-if [ -z "$IP_ADDR" ]; then
-    IP_ADDR="localhost"
+# 下载并解压依赖文件
+DEPS_URL="${BASE_URL}/releases/${ARCH}/${DEPS_ARCHIVE}"
+DEPS_GITHUB_URL="${GITHUB_URL}/releases/${ARCH}/${DEPS_ARCHIVE}"
+echo "下载依赖文件..."
+if ! curl -L -f -o "${TEMP_DIR}/${DEPS_ARCHIVE}" "${DEPS_URL}"; then
+    echo "尝试备用下载地址..."
+    if ! curl -L -f -o "${TEMP_DIR}/${DEPS_ARCHIVE}" "${DEPS_GITHUB_URL}"; then
+        echo -e "${RED}错误: 无法下载依赖文件${NC}"
+        echo "请检查以下网址是否可访问:"
+        echo "${DEPS_URL}"
+        echo "${DEPS_GITHUB_URL}"
+        rm -rf "${TEMP_DIR}"
+        exit 1
+    fi
 fi
 
-# 完成
-echo ""
-echo "=========================================================="
-echo "          图书馆座位管理系统安装完成！"
-echo "=========================================================="
-echo ""
-echo "访问地址: http://$IP_ADDR:5000"
-echo "默认管理员账号: admin"
-echo "默认密码: admin"
-echo ""
-echo "请立即修改默认密码以确保系统安全！"
-echo ""
-echo "卸载命令: sudo bash $INSTALL_DIR/uninstall.sh"
-echo ""
+echo "解压依赖文件..."
+tar -xzf "${TEMP_DIR}/${DEPS_ARCHIVE}" -C "${INSTALL_DIR}"
+
+# 创建符号链接
+echo "创建程序链接..."
+ln -sf "${INSTALL_DIR}/${APP_NAME}" "${BIN_DIR}/library-seat-app"
+
+# 下载卸载脚本
+UNINSTALL_URL="${BASE_URL}/scripts/uninstall.sh"
+UNINSTALL_GITHUB_URL="${GITHUB_URL}/scripts/uninstall.sh"
+echo "下载卸载脚本..."
+if ! curl -L -f -o "${INSTALL_DIR}/uninstall.sh" "${UNINSTALL_URL}"; then
+    echo "尝试备用下载地址..."
+    if ! curl -L -f -o "${INSTALL_DIR}/uninstall.sh" "${UNINSTALL_GITHUB_URL}"; then
+        echo -e "${RED}错误: 无法下载卸载脚本${NC}"
+        echo "请检查以下网址是否可访问:"
+        echo "${UNINSTALL_URL}"
+        echo "${UNINSTALL_GITHUB_URL}"
+        # 继续安装过程，卸载脚本不是必需的
+    fi
+fi
+chmod +x "${INSTALL_DIR}/uninstall.sh"
+ln -sf "${INSTALL_DIR}/uninstall.sh" "${BIN_DIR}/uninstall-library-seat-app"
+
+# 清理临时目录
+rm -rf "${TEMP_DIR}"
+
+echo -e "${GREEN}安装完成!${NC}"
+echo -e "正在启动应用程序..."
+
+# 在后台运行应用程序并将输出重定向到/dev/null
+nohup "${INSTALL_DIR}/${APP_NAME}" > /dev/null 2>&1 &
+
+# 等待应用程序启动
+sleep 2
+
+# 获取本机内网IP
+INTERNAL_IP=$(hostname -I | awk '{print $1}')
+
+# 尝试获取公网IP (如果有网络连接)
+PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s ipinfo.io/ip 2>/dev/null || echo "无法获取公网IP")
+
+echo -e "${GREEN}图书馆座位管理应用已成功启动!${NC}"
+echo -e "${YELLOW}应用网站运行在 ${APP_PORT} 端口${NC}"
+echo -e ""
+echo -e "访问链接:"
+echo -e "${BLUE}内网链接: http://${INTERNAL_IP}:${APP_PORT}${NC}"
+
+if [ "${PUBLIC_IP}" != "无法获取公网IP" ]; then
+    echo -e "${BLUE}公网链接: http://${PUBLIC_IP}:${APP_PORT}${NC}"
+else
+    echo -e "${YELLOW}公网链接: 无法获取公网IP，请检查网络连接${NC}"
+fi
+
+echo -e ""
+echo -e "${GREEN}提示：${NC}如果通过公网访问，您可能需要开放防火墙端口 ${APP_PORT}"
+echo -e ""
+echo -e "您可以随时使用以下命令再次运行应用: ${YELLOW}library-seat-app${NC}"
+echo -e "要卸载应用，请运行: ${YELLOW}sudo uninstall-library-seat-app${NC}"
