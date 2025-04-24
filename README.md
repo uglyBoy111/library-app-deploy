@@ -17,18 +17,12 @@
 curl -fsSL https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main/scripts/install.sh | sudo bash
 ```
 
-或
-
-```bash
-wget -O - https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main/scripts/install.sh | sudo bash
-```
-
 安装完成后访问：`http://服务器IP:5000`，默认管理员账号:admin/admin
 
 ## 一键卸载
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main/scripts/uninstall.sh | sudo bash
+sudo bash /opt/library-app/uninstall.sh
 ```
 
 ## 系统管理
@@ -47,6 +41,7 @@ sudo journalctl -u library-app -f
 ## 常见问题
 
 - 无法访问：检查防火墙 `sudo ufw allow 5000/tcp`
+- 服务不启动：检查日志 `sudo journalctl -u library-app -n 50`
 - 配置修改：编辑 `/opt/library-app/data/instance/config.ini`
 
 ---
