@@ -1,7 +1,7 @@
 # 图书馆座位管理系统部署指南
 
 这是图书馆座位管理系统的部署仓库，支持 x86_64 和 arm64 架构。本系统提供一键部署和卸载功能。
-作者自己买了服务器和域名,自便,2026年2月到期:uglylcc.top
+作者自己买了服务器和域名,自便,2026年2月到期:[uglylcc.top](http://uglylcc.top)
 
 ## 系统要求
 
@@ -17,6 +17,8 @@
 ```bash
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main/scripts/install.sh)"
 ```
+
+安装脚本链接: [https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main/scripts/install.sh](https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main/scripts/install.sh)
 
 ### 使用 wget
 
@@ -40,6 +42,8 @@ sudo uninstall-library-seat-app
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main/scripts/uninstall.sh)"
 ```
 
+卸载脚本链接: [https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main/scripts/uninstall.sh](https://raw.githubusercontent.com/uglyBoy111/library-app-deploy/main/scripts/uninstall.sh)
+
 ### 使用 wget 直接卸载
 
 ```bash
@@ -55,10 +59,14 @@ sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/uglyBoy111/library-a
 sudo bash -c "$(curl -fsSL https://github.com/uglyBoy111/library-app-deploy/raw/main/scripts/install.sh)"
 ```
 
+备用安装脚本链接: [https://github.com/uglyBoy111/library-app-deploy/raw/main/scripts/install.sh](https://github.com/uglyBoy111/library-app-deploy/raw/main/scripts/install.sh)
+
 使用 jsDelivr CDN：
 ```bash
 sudo bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/uglyBoy111/library-app-deploy@main/scripts/install.sh)"
 ```
+
+CDN 安装脚本链接: [https://cdn.jsdelivr.net/gh/uglyBoy111/library-app-deploy@main/scripts/install.sh](https://cdn.jsdelivr.net/gh/uglyBoy111/library-app-deploy@main/scripts/install.sh)
 
 ### 2. 部署后无法访问网站？
 
@@ -92,4 +100,4 @@ library-seat-app
 
 ## 技术支持
 
-如有问题，请提交 Issue 至本仓库。
+如有问题，请提交 Issue 至[本仓库](https://github.com/uglyBoy111/library-app-deploy/issues)。
